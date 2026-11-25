@@ -10,14 +10,24 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 // STEP 31 - NEW: Serve the student webpage.
 app.use('/app', express.static('public'));
-// PostgreSQL connection
-const pool = new Pool({
-    host: process.env.DB_HOST,
-    port: process.env.DB_PORT,
-    database: process.env.DB_NAME,
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD
-});
+
+// ====================================================
+//CONNECT TO NEON POSTGRESQL
+// ====================================================
+
+const pool = new Pool(
+    process.env.DATABASE_URL
+        ? {
+            connectionString: process.env.DATABASE_URL
+          }
+        : {
+            host: process.env.DB_HOST,
+            port: process.env.DB_PORT,
+            database: process.env.DB_NAME,
+            user: process.env.DB_USER,
+            password: process.env.DB_PASSWORD
+          }
+);
 
 // Home page
 app.get('/', (req, res) => {
@@ -46,7 +56,6 @@ app.get('/db-test', async (req, res) => {
     }
 });
 
-// STEP 28 - Retrieve active careers
 app.get('/api/careers', async (req, res) => {
     try {
         const result = await pool.query(
@@ -72,7 +81,6 @@ app.get('/api/careers', async (req, res) => {
     }
 });
 
-// STEP 29 - Retrieve skills required for a career
 app.get('/api/careers/:careerId/skills', async (req, res) => {
     try {
         const careerId = req.params.careerId;
@@ -131,11 +139,6 @@ app.get('/api/careers/:careerId/skills', async (req, res) => {
         });
     }
 });
-
-// ====================================================
-// STEP 30 - NEW CODE STARTS HERE
-// Calculate and prioritize a student's skills gaps
-// ====================================================
 
 app.post('/api/assessments/calculate', async (req, res) => {
     try {
@@ -277,15 +280,10 @@ app.post('/api/assessments/calculate', async (req, res) => {
     }
 });
 
-// ====================================================
-// STEP 30 - NEW CODE ENDS HERE
-// ====================================================
+
 
 // Start the Express server.
 
-// ====================================================
-// STEP 32 - NEW: Learning recommendations API
-// ====================================================
 
 app.get('/api/skills/:skillId/resources', async (req, res) => {
     try {
@@ -324,9 +322,6 @@ app.get('/api/skills/:skillId/resources', async (req, res) => {
     }
 });
 
-// ====================================================
-// STEP 32 - NEW CODE ENDS HERE
-// ====================================================
 
 app.listen(PORT, () => {
     console.log(
