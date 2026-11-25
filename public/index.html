@@ -1,0 +1,514 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>SkillBridge Rwanda</title>
+
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            font-family: Arial, sans-serif;
+            background: #f3f6fb;
+            color: #1e293b;
+        }
+
+        header {
+            background: #173b65;
+            color: white;
+            padding: 28px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            margin: 0 0 10px;
+        }
+
+        header p {
+            margin: 0;
+            line-height: 1.5;
+        }
+
+        main {
+            max-width: 850px;
+            margin: 30px auto;
+            padding: 0 16px;
+        }
+
+        .panel {
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 3px 12px #0000000d;
+        }
+
+        h2 {
+            margin-top: 0;
+            color: #173b65;
+        }
+
+        label {
+            display: block;
+            font-weight: bold;
+            margin-bottom: 9px;
+        }
+
+        select {
+            padding: 12px;
+            width: 100%;
+            border: 1px solid #cbd5e1;
+            border-radius: 7px;
+            background: white;
+            font-size: 15px;
+        }
+
+        .skill {
+            border-bottom: 1px solid #e2e8f0;
+            padding: 16px 0;
+        }
+
+        .skill p {
+            margin: 5px 0 12px;
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        button {
+            background: #147d66;
+            color: white;
+            border: none;
+            border-radius: 7px;
+            padding: 14px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            margin-top: 20px;
+        }
+
+        button:hover {
+            background: #0d5c4b;
+        }
+
+        button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+        }
+
+        .result {
+            border-left: 4px solid #147d66;
+            background: #f8fafc;
+            padding: 15px;
+            margin: 12px 0;
+            border-radius: 6px;
+        }
+
+        .result strong {
+            display: block;
+            margin-bottom: 7px;
+        }
+
+        .message {
+            color: #475569;
+            line-height: 1.6;
+        }
+
+        .error {
+            color: #b91c1c;
+        }
+
+        footer {
+            text-align: center;
+            color: #64748b;
+            padding: 25px;
+        }
+
+        [hidden] {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <h1>SkillBridge Rwanda</h1>
+        <p>
+            Discover your skills gaps and prepare
+            for your future career.
+        </p>
+    </header>
+
+    <main>
+
+        <section class="panel">
+            <h2>1. Choose Your Career</h2>
+
+            <label for="careerSelect">
+                Select your desired career
+            </label>
+
+            <select id="careerSelect">
+                <option value="">
+                    Loading careers...
+                </option>
+            </select>
+        </section>
+
+        <section class="panel" id="assessmentPanel" hidden>
+            <h2>2. Assess Your Skills</h2>
+
+            <p class="message">
+                Rate your current ability for each skill.
+                0 means no experience and 5 means advanced.
+            </p>
+
+            <form id="assessmentForm">
+                <div id="skillsContainer"></div>
+
+                <button type="submit" id="calculateButton">
+                    Calculate My Skills Gaps
+                </button>
+            </form>
+        </section>
+
+        <section class="panel" id="resultsPanel" hidden>
+            <h2>3. Your Skills-Gap Results</h2>
+
+            <p id="resultsSummary"></p>
+
+            <div id="resultsContainer"></div>
+        </section>
+
+        <p class="message" id="statusMessage"></p>
+
+    </main>
+
+    <footer>
+        SkillBridge Rwanda — Career Readiness Prototype
+    </footer>
+
+    <script>
+        const careerSelect =
+            document.getElementById('careerSelect');
+
+        const assessmentPanel =
+            document.getElementById('assessmentPanel');
+
+        const assessmentForm =
+            document.getElementById('assessmentForm');
+
+        const skillsContainer =
+            document.getElementById('skillsContainer');
+
+        const resultsPanel =
+            document.getElementById('resultsPanel');
+
+        const resultsContainer =
+            document.getElementById('resultsContainer');
+
+        const resultsSummary =
+            document.getElementById('resultsSummary');
+
+        const statusMessage =
+            document.getElementById('statusMessage');
+
+        const calculateButton =
+            document.getElementById('calculateButton');
+
+        let selectedSkills = [];
+
+        // Load the three careers from PostgreSQL.
+        async function loadCareers() {
+            try {
+                const response = await fetch('/api/careers');
+
+                if (!response.ok) {
+                    throw new Error('Could not load careers');
+                }
+
+                const data = await response.json();
+
+                careerSelect.innerHTML =
+                    '<option value="">Choose a career</option>';
+
+                data.careers.forEach(career => {
+                    const option =
+                        document.createElement('option');
+
+                    option.value = career.career_id;
+                    option.textContent = career.career_name;
+
+                    careerSelect.appendChild(option);
+                });
+
+            } catch (error) {
+                statusMessage.textContent = error.message;
+                statusMessage.className = 'message error';
+            }
+        }
+
+        // Load the skills for the selected career.
+        careerSelect.addEventListener('change', async () => {
+            const careerId = careerSelect.value;
+
+            assessmentPanel.hidden = true;
+            resultsPanel.hidden = true;
+            skillsContainer.replaceChildren();
+            selectedSkills = [];
+            statusMessage.textContent = '';
+
+            if (!careerId) {
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    '/api/careers/' + careerId + '/skills'
+                );
+
+                if (!response.ok) {
+                    throw new Error('Could not load career skills');
+                }
+
+                const data = await response.json();
+
+                selectedSkills = data.skills;
+
+                data.skills.forEach(skill => {
+                    const wrapper =
+                        document.createElement('div');
+
+                    wrapper.className = 'skill';
+
+                    const label =
+                        document.createElement('label');
+
+                    label.textContent = skill.skill_name;
+
+                    const description =
+                        document.createElement('p');
+
+                    description.textContent =
+                        'Required level: ' +
+                        skill.required_level +
+                        '/5 — Importance: ' +
+                        skill.importance_weight +
+                        '/5';
+
+                    const select =
+                        document.createElement('select');
+
+                    select.required = true;
+                    select.dataset.skillId = skill.skill_id;
+
+                    const placeholder =
+                        document.createElement('option');
+
+                    placeholder.value = '';
+                    placeholder.textContent =
+                        'Choose your current level';
+
+                    select.appendChild(placeholder);
+
+                    for (let level = 0; level <= 5; level++) {
+                        const option =
+                            document.createElement('option');
+
+                        option.value = level;
+                        option.textContent =
+                            level + ' out of 5';
+
+                        select.appendChild(option);
+                    }
+
+                    wrapper.appendChild(label);
+                    wrapper.appendChild(description);
+                    wrapper.appendChild(select);
+
+                    skillsContainer.appendChild(wrapper);
+                });
+
+                assessmentPanel.hidden = false;
+
+            } catch (error) {
+                statusMessage.textContent = error.message;
+                statusMessage.className = 'message error';
+            }
+        });
+
+        // Submit ratings to the existing Step 30 API.
+        assessmentForm.addEventListener(
+            'submit',
+            async event => {
+                event.preventDefault();
+
+                const ratings = [
+                    ...skillsContainer.querySelectorAll('select')
+                ].map(select => ({
+                    skill_id: select.dataset.skillId,
+                    current_level: Number(select.value)
+                }));
+
+                const requestBody = {
+                    career_id: careerSelect.value,
+                    skills: ratings
+                };
+
+                calculateButton.disabled = true;
+                resultsPanel.hidden = true;
+                statusMessage.textContent =
+                    'Calculating your skills gaps...';
+
+                try {
+                    const response = await fetch(
+                        '/api/assessments/calculate',
+                        {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(requestBody)
+                        }
+                    );
+
+                    const data = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(
+                            data.message || 'Calculation failed'
+                        );
+                    }
+
+                    resultsContainer.replaceChildren();
+
+                    resultsSummary.textContent =
+                        data.skills_needing_improvement +
+                        ' of ' +
+                        data.total_skills +
+                        ' skills need improvement.';
+
+                    data.gaps.forEach(skill => {
+                        const card =
+                            document.createElement('div');
+
+                        card.className = 'result';
+
+                        const title =
+                            document.createElement('strong');
+
+                        title.textContent = skill.skill_name;
+
+                        const information =
+                            document.createElement('p');
+
+                        information.textContent =
+                            'Your level: ' +
+                            skill.current_level +
+                            '/5 | Required: ' +
+                            skill.required_level +
+                            '/5 | Gap: ' +
+                            skill.gap_score +
+                            ' | Priority: ' +
+                            skill.priority_score;
+
+
+card.appendChild(title);
+card.appendChild(information);
+
+if (skill.gap_score > 0) {
+    const resourceSection =
+        document.createElement('div');
+
+    const loading =
+        document.createElement('p');
+
+    loading.textContent =
+        'Loading recommended learning resources...';
+
+    resourceSection.appendChild(loading);
+    card.appendChild(resourceSection);
+
+    fetch('/api/skills/' + skill.skill_id + '/resources')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Unable to load resources');
+            }
+            return response.json();
+        })
+        .then(data => {
+            resourceSection.replaceChildren();
+
+            data.resources.forEach(resource => {
+                const paragraph =
+                    document.createElement('p');
+
+                if (resource.resource_url) {
+                    const link =
+                        document.createElement('a');
+
+                    link.href = resource.resource_url;
+                    link.target = '_blank';
+                    link.rel = 'noopener noreferrer';
+                    link.textContent = resource.title;
+
+                    paragraph.appendChild(link);
+                } else {
+                    paragraph.textContent = resource.title;
+                }
+
+                const description =
+                    document.createElement('p');
+
+                description.textContent =
+                    resource.description || '';
+
+                resourceSection.appendChild(paragraph);
+                resourceSection.appendChild(description);
+            });
+
+            if (data.resources.length === 0) {
+                resourceSection.textContent =
+                    'No learning resources available yet.';
+            }
+        })
+        .catch(error => {
+            resourceSection.textContent =
+                'Could not load learning resources.';
+            console.error(error);
+        });
+}
+
+resultsContainer.appendChild(card);
+
+                    });
+
+                    resultsPanel.hidden = false;
+                    statusMessage.textContent = '';
+
+                    resultsPanel.scrollIntoView({
+                        behavior: 'smooth'
+                    });
+
+                } catch (error) {
+                    statusMessage.textContent = error.message;
+                    statusMessage.className = 'message error';
+
+                } finally {
+                    calculateButton.disabled = false;
+                }
+            }
+        );
+
+        loadCareers();
+    </script>
+
+</body>
+</html>
